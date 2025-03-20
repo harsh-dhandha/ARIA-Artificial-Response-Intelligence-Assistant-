@@ -1,2 +1,6 @@
 venv/
 .env
+**/serviceAccountKey.json
+# Ignore Service Account Keys
+Aria_IoBackend/serviceAccountKey.json
+Aria_IoBackend/venv/
