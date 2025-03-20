@@ -1,0 +1,9 @@
+venv/
+.env
+.env.*
+.env.local
+.ruff_cache/
+
+*.pyc
+*.pyo
+__pycache__/
