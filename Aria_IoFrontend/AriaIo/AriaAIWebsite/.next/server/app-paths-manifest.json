@@ -1,7 +1,0 @@
-{
-  "/page": "app/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/auth/login/agent/page": "app/auth/login/agent/page.js",
-  "/auth/login/api/page": "app/auth/login/api/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js"
-}
