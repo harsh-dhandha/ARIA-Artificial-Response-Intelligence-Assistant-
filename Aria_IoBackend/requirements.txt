@@ -23,3 +23,5 @@ PyPDF2
 faiss-cpu
 firebase-admin
 gunicorn
+cloudinary==1.36.0
+uvicorn
