@@ -6,6 +6,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import os
 import re
+import tempfile
+
 import warnings
 from pydantic import BaseModel, EmailStr, field_validator
 import firebase_admin
@@ -827,40 +829,335 @@ async def login(request: Login):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {str(e)}"
         )
+from fastapi import FastAPI, File, UploadFile, HTTPException, status
+from typing import List
+import cloudinary
+import cloudinary.uploader
+import os
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 
-@app.post("/process", status_code=status.HTTP_200_OK)
-async def process_files(request: FileProcess, token: str = Depends(oauth2_scheme)):
-    """Process uploaded files and optionally rewrite content"""
-    try:
-        # Verify token
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"}
+cloudinary.config(
+    cloud_name="dofjekdo1",
+    api_key="234761368851919",
+    api_secret="V-GtIw-vUrX-gOfLdJQJhB7FJ_k"
+)
+
+# Use firebase_app name to avoid conflicts
+try:
+    firebase_app = firebase_admin.get_app()
+except ValueError:
+    # Initialize Firebase if not already initialized
+    # cred = credentials.Certificate("path/to/serviceAccountKey.json")
+    # firebase_app = firebase_admin.initialize_app(cred)
+    pass
+
+# Get Firestore client
+db = firestore.client()
+
+@app.post("/uploads", status_code=status.HTTP_200_OK)
+async def upload_files(files: List[UploadFile] = File(...)):
+    """Upload multiple PDF files to Cloudinary and store metadata in Firestore."""
+    
+    # Validate number of files
+    if len(files) > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 5 PDF files can be uploaded at once"
         )
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            username: str = payload.get("sub")
-            if username is None:
-                raise credentials_exception
-        except JWTError:
-            raise credentials_exception
+    
+    uploaded_files_info = []
+    
+    for file in files:
+        # Validate file is a PDF
+        if not file.content_type == "application/pdf":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File {file.filename} is not a PDF"
+            )
         
-        # You can implement actual file processing logic here
-        # For now, we'll just return success
+        temp_file_path = None
+        try:
+            # Read content and create temporary file
+            content = await file.read()
+            print(f"DEBUG: Read content for {file.filename}")
+
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file_path = temp_file.name
+                temp_file.write(content)
+                print(f"DEBUG: Temporary file created at {temp_file_path}")
+
+            # Upload to Cloudinary
+            result = cloudinary.uploader.upload(
+                temp_file_path,
+                resource_type="raw",
+                folder="pdfs",
+                use_filename=True,
+                unique_filename=True
+            )
+            print(f"DEBUG: Uploaded to Cloudinary: {result['secure_url']}")
+
+            # Create metadata
+            file_info = {
+                'name': file.filename,
+                'contentType': file.content_type,
+                'url': result['secure_url'],
+                'public_id': result['public_id'],
+                'uploaded_at': firestore.SERVER_TIMESTAMP
+            }
+            print(f"DEBUG: File info to store: {file_info}")
+
+            # Store in Firestore
+            doc_ref = db.collection('pdf_uploads').add(file_info)
+            print(f"DEBUG: Document added to Firestore with ID: {doc_ref.id}")
+            
+            # Add file info to the response list
+            uploaded_files_info.append(file_info)
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error uploading {file.filename}: {str(e)}"
+            )
+        finally:
+            # Clean up temp file
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+    
+    return {
+        "status": True,
+        "message": "Files uploaded successfully",
+        "files_processed": len(uploaded_files_info),
+        "uploaded_files": uploaded_files_info,
+    }
+
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile
+from firebase_admin import firestore
+from datetime import datetime, timedelta
+import traceback
+
+@app.options("/upload-pdfs")
+async def options_upload_pdfs():
+    return cors_options_response()
+
+@app.post("/upload-pdfs", status_code=status.HTTP_200_OK)
+async def upload_pdfs(files: List[UploadFile] = File(...)):
+    """
+    Upload up to 5 PDF files to Cloudinary and store their URLs in Firebase.
+    """
+    # Validate number of files
+    if len(files) > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 5 PDF files can be uploaded at once"
+        )
+    
+    if len(files) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one file must be provided"
+        )
+    
+    uploaded_files_info = []
+    
+    for file in files:
+        # Validate file is a PDF
+        if not file.content_type == "application/pdf":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File {file.filename} is not a PDF"
+            )
+        
+        temp_file_path = None
+        try:
+            # Read content and create temporary file
+            content = await file.read()
+            print(f"DEBUG: Read content for {file.filename}")
+            
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file_path = temp_file.name
+                temp_file.write(content)
+                print(f"DEBUG: Temporary file created at {temp_file_path}")
+            
+            # Upload to Cloudinary
+            try:
+                result = cloudinary.uploader.upload(
+                    temp_file_path,
+                    resource_type="raw",
+                    folder="pdfs",
+                    use_filename=True,
+                    unique_filename=True
+                )
+                cloud_url = result.get('secure_url')
+                print(f"DEBUG: Uploaded to Cloudinary: {cloud_url}")
+            except Exception as cloud_err:
+                print(f"ERROR uploading to Cloudinary: {str(cloud_err)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Cloudinary upload failed: {str(cloud_err)}"
+                )
+            
+            # Create metadata for Firestore - use current time for response
+            current_time = datetime.now()
+            current_time_str = current_time.isoformat()
+            
+            # For Firestore document - use SERVER_TIMESTAMP
+            firestore_data = {
+                'name': file.filename,
+                'contentType': file.content_type,
+                'url': cloud_url,
+                'public_id': result.get('public_id'),
+                'timestamp': firestore.SERVER_TIMESTAMP  # This is what Firestore will use
+            }
+            
+            # Store in Firestore
+            try:
+                doc_ref = db.collection('pdf_uploads').document()
+                doc_ref.set(firestore_data)
+                doc_id = doc_ref.id
+                print(f"DEBUG: Document added to Firestore with ID: {doc_id}")
+                
+                # Create response data WITHOUT the SERVER_TIMESTAMP sentinel
+                response_data = {
+                    'id': doc_id,
+                    'name': file.filename,
+                    'contentType': file.content_type,
+                    'url': cloud_url,
+                    'public_id': result.get('public_id'),
+                    'uploaded_at': current_time_str,  # Use string timestamp for response
+                    'time_ago': "Just now"
+                }
+                
+                uploaded_files_info.append(response_data)
+            except Exception as db_err:
+                print(f"ERROR storing in Firestore: {str(db_err)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Database error: {str(db_err)}"
+                )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
+            print(f"ERROR in upload_pdfs: {str(e)}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error uploading {file.filename}: {str(e)}"
+            )
+        finally:
+            # Clean up temp file
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                print(f"DEBUG: Temporary file removed: {temp_file_path}")
+    
+    return {
+        "status": True,
+        "message": f"Successfully uploaded {len(uploaded_files_info)} files",
+        "files": uploaded_files_info
+    }
+
+
+@app.options("/recent-pdfs")
+async def options_recent_pdfs():
+    return cors_options_response()
+
+@app.get("/recent-pdfs", status_code=status.HTTP_200_OK)
+async def get_recent_pdfs():
+    """
+    Retrieve PDF URLs uploaded within the last 3 minutes.
+    """
+    try:
+        # Calculate timestamp from 3 minutes ago
+        three_minutes_ago = datetime.now() - timedelta(minutes=3)
+        print(f"DEBUG: Getting PDFs uploaded after {three_minutes_ago.isoformat()}")
+        
+        try:
+            # Query for recent documents
+            # Note: We can't directly query by SERVER_TIMESTAMP with a comparison
+            # So we'll get recent documents and filter them in memory
+            query = db.collection('pdf_uploads').order_by(
+                'timestamp', direction=firestore.Query.DESCENDING
+            ).limit(50)  # Get most recent 50 to filter from
+            
+            # Execute query
+            docs = query.stream()
+            
+        except Exception as query_err:
+            print(f"ERROR querying Firestore: {str(query_err)}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query error: {str(query_err)}"
+            )
+        
+        recent_pdfs = []
+        for doc in docs:
+            try:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                
+                # Get the timestamp (it might be a Firestore timestamp object)
+                timestamp = data.get('timestamp')
+                
+                # Skip non-existent timestamps
+                if not timestamp:
+                    continue
+                    
+                # Convert Firestore timestamp to datetime if needed
+                if hasattr(timestamp, 'seconds'):
+                    dt = datetime.fromtimestamp(timestamp.seconds)
+                    
+                    # Skip if older than 3 minutes
+                    if dt < three_minutes_ago:
+                        continue
+                        
+                    # Format for response
+                    data['uploaded_at'] = dt.isoformat()
+                    data['time_ago'] = get_time_ago(dt)
+                    
+                    # Remove the non-serializable Firestore timestamp
+                    data.pop('timestamp', None)
+                    
+                # If we get here, this is a document we want to include
+                recent_pdfs.append(data)
+                
+            except Exception as doc_err:
+                print(f"WARNING: Error processing document {doc.id}: {str(doc_err)}")
+                # Continue with other documents
+        
+        print(f"DEBUG: Retrieved {len(recent_pdfs)} PDFs uploaded in the last 3 minutes")
+        
         return {
             "status": True,
-            "message": "Files processed successfully",
-            "files_processed": len(request.files),
-            "rewrite_enabled": request.rewrite
+            "count": len(recent_pdfs),
+            "files": recent_pdfs
         }
-    except HTTPException as e:
-        raise e
+        
     except Exception as e:
+        print(f"ERROR retrieving recent PDFs: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {str(e)}"
+            detail=f"Error retrieving recent PDFs: {str(e)}"
         )
+
+def get_time_ago(dt):
+    """Convert a datetime to a human-readable 'time ago' string"""
+    now = datetime.now()
+    diff = now - dt
+    
+    seconds = diff.total_seconds()
+    if seconds < 60:
+        return f"{int(seconds)} seconds ago"
+    elif seconds < 3600:
+        return f"{int(seconds/60)} minutes ago"
+    else:
+        return f"{int(seconds/3600)} hours ago"
+    
+
 
 @app.options("/add_domain")
 async def options_add_domain():

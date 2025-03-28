@@ -33,6 +33,7 @@ const truncateApiKey = (apiKey: string) => {
   }
   return apiKey;
 };
+
 function VoiceAgentContent() {
   const router = useRouter(); // Initialize the router
   const featuresRef = useRef([]);
@@ -100,7 +101,7 @@ function VoiceAgentContent() {
           transform: translateX(0) !important;
         }
       `}</style>
-
+       
       {/* Fixed Button in Top Right - Updated with onClick handler */}
       <div className="fixed top-6 right-6 z-50">
         <button 
@@ -470,22 +471,6 @@ export default function Page() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    setSelectedFiles(pdfFiles);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    setSelectedFiles(pdfFiles);
-  };
 
   const uploadToFirebase = async (file: File) => {
     const storageRef = ref(storage, `pdfs/${Date.now()}-${file.name}`);
@@ -493,90 +478,70 @@ export default function Page() {
     return await getDownloadURL(storageRef);
   };
 
+  // Check user session
+  useEffect(() => {
+      if (!userEmail || !userPassword) {
+          router.push('/auth/login');
+      }
+  }, [userEmail, userPassword, router]);
+
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+      setSelectedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const files = event.dataTransfer.files;
+    const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+    setSelectedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
+  };
+
+
+  // Handle file upload
   const handleUpload = async () => {
-    if (apiKeys.length === 0) {
-      toast.error('Please create an API key first');
-      setShowCreateForm(true);
-      return;
-    }
-
-    if (selectedFiles.length === 0) {
-      toast.error('Please select PDF files to upload');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const uploadPromises = selectedFiles.map(uploadToFirebase);
-      const fileUrls = await Promise.all(uploadPromises);
-      
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKeys[0].apiKey.trim()}`
-      };
-
-      // Upload files
-      const uploadResponse = await axios.post(
-        'https://mimirai-rag.onrender.com/process', 
-        {
-          files: fileUrls,
-          rewrite: rewriteMode
-        },
-        { 
-          headers,
-          validateStatus: function (status) {
-            return status < 500;
-          }
-        }
-      );
-
-      if (uploadResponse.status === 401) {
-        throw new Error('Invalid or expired API key');
+      if (selectedFiles.length === 0) {
+          toast.error('Please select PDF files to upload');
+          return;
       }
 
-      // Only proceed with filter words check if process was successful
-      if (uploadResponse.status === 200) {
-        try {
-          const filterWordsResponse = await axios.post('https://mimirai-rag.onrender.com/get_filterwords', {
-            email: userEmail
-          });
-          
-          setFilterWords(filterWordsResponse.data.filter_words);
-          
-          if (filterWordsResponse.data.filter_words.length > 0) {
-            setActiveTab('FILTERWORDS');
-            toast('Inappropriate content detected!', {
-              icon: '⚠️',
-              style: {
-                background: '#FEF3C7',
-                color: '#92400E',
+      setIsUploading(true);
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+          formData.append('files', file); // Append each file to FormData
+      });
+
+      try {
+          const response = await axios.post('http://localhost:8000/upload-pdfs', formData, {
+              headers: {
+                  'Content-Type': 'multipart/form-data',
               },
-            });
-          } else {
-            toast.success('No inappropriate content detected');
-          }
-        } catch (error) {
-          console.error('Failed to check filter words:', error);
-          toast.error('Failed to check content for inappropriate words');
-        }
-      }
+          });
 
-      console.log('API Response:', uploadResponse.data);
-      toast.success('Files uploaded and processed successfully!');
-      setSelectedFiles([]);
-    } catch (error) {
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      if (error.response?.status === 404) {
-        toast.error('API endpoint not found. Please check the URL.');
-      } else if (error.response?.status === 401) {
-        toast.error('Unauthorized. Invalid API key or expired token.');
-      } else {
-        toast.error('Failed to upload files. Please try again.');
+          if (response.data.status) {
+              console.log(response.data.files); // Log the uploaded file URLs
+              toast.success('Files uploaded successfully');
+              setSelectedFiles([]); // Clear selected files
+          } else {
+              toast.error('Failed to upload files. Please try again.');
+          }
+      } catch (error) {
+          console.error('Upload error:', error);
+          const errorMessage = error.response?.data?.detail || 'An error occurred during upload';
+          toast.error(errorMessage);
+      } finally {
+          setIsUploading(false); // Reset uploading state
       }
-    } finally {
-      setIsUploading(false);
-    }
   };
 
   const handleApiKeyClick = (key: ApiKey) => {
@@ -620,6 +585,7 @@ export default function Page() {
       toast.error(error.response?.data?.message || 'Failed to add domain. Please try again.');
     }
   };
+
 
   
   return (
@@ -981,26 +947,12 @@ export default function Page() {
 
                   {/* Upload Button */}
                   <button
-                    onClick={handleUpload}
-                    disabled={isUploading || selectedFiles.length === 0}
-                    className={`w-full py-3 rounded-lg font-medium shadow-lg transition-all duration-200 ${
-                      isUploading || selectedFiles.length === 0
-                        ? 'bg-gray-600 cursor-not-allowed'
-                        : 'bg-green-500 hover:bg-green-600 shadow-green-500/30'
-                    }`}
-                  >
-                    {isUploading ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Uploading...
-                      </div>
-                    ) : (
-                      'Upload Files'
-                    )}
-                  </button>
+                onClick={handleUpload}
+                disabled={isUploading || selectedFiles.length === 0}
+                className={`mt-4 w-full py-3 rounded-lg font-medium ${isUploading || selectedFiles.length === 0 ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+            >
+                {isUploading ? 'Uploading...' : 'Upload Files'}
+            </button>
                 </div>
                 {/* Replace the existing PDF Preview Overlay with this new full-screen modal */}
                 {showPreview && selectedPreviewFile && (
