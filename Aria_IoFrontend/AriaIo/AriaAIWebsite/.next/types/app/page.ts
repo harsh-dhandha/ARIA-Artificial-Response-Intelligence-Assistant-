@@ -1,4 +1,4 @@
-// File: C:\TRY\Mimir-AI\Mimir_AI Frontend\Mimir AI\Mimir AI website\src\app\page.tsx
+// File: E:\SGP6\ARIA-Artificial-Response-Intelligence-Assistant--main\Aria_IoFrontend\AriaIo\AriaAIWebsite\src\app\page.tsx
 import * as entry from '../../../src/app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

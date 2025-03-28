@@ -1,7 +1,7 @@
 {
-  "/auth/login/page": "app/auth/login/page.js",
-  "/auth/login/signup/page": "app/auth/login/signup/page.js",
-  "/auth/login/api/page": "app/auth/login/api/page.js",
   "/page": "app/page.js",
-  "/auth/login/reset/page": "app/auth/login/reset/page.js"
+  "/auth/login/page": "app/auth/login/page.js",
+  "/auth/login/agent/page": "app/auth/login/agent/page.js",
+  "/auth/login/api/page": "app/auth/login/api/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js"
 }

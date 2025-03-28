@@ -9,26 +9,41 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@svgr/webpack": "^8.1.0",
+    "@livekit/components-react": "^2.6.7",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-select": "^2.0.0",
     "axios": "^1.7.9",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "cookies-next": "^4.1.1",
     "firebase": "^11.0.2",
-    "framer-motion": "^11.3.21",
-    "next": "^14.2.18",
+    "framer-motion": "^10.16.16",
+    "js-yaml": "^4.1.0",
+    "livekit-client": "^2.5.10",
+    "livekit-server-sdk": "^2.1.2",
+    "lodash": "^4.17.21",
+    "lucide-react": "^0.383.0",
+    "next": "^14.0.4",
+    "qrcode.react": "^3.1.0",
     "react": "^18",
     "react-dom": "^18",
     "react-hot-toast": "^2.4.1",
     "react-pdf": "^9.1.1",
-    "tailwind-merge": "^2.4.0"
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
+    "@svgr/webpack": "^8.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/lodash": "^4.17.0",
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.43",
     "@types/react-dom": "^18",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.16",
     "eslint": "^8",
-    "eslint-config-next": "14.2.5",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5",
+    "typescript": "^5.3.3"
   }
 }

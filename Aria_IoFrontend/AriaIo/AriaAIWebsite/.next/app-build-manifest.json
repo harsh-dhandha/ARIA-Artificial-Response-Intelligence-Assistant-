@@ -16,20 +16,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/auth/login/page.js"
     ],
-    "/auth/login/signup/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/auth/login/signup/page.js"
-    ],
     "/auth/login/api/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/auth/login/api/page.js"
     ],
-    "/auth/login/reset/page": [
+    "/auth/login/agent/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/auth/login/reset/page.js"
+      "static/css/app/auth/login/agent/page.css",
+      "static/chunks/app/auth/login/agent/page.js"
     ]
   }
 }

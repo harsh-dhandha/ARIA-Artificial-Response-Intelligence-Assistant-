@@ -7,6 +7,13 @@ import { useAuth } from '@/app/context/AuthContext';
 import { storage } from '@/firebase/config'; // Make sure you have Firebase configured
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
+import { useCallback } from "react";
+import Head from "next/head";
+import { AnimatePresence, motion } from "framer-motion";
+
+// import Assistant from "@/app/auth/assistant/page";
+// import { PlaygroundToast, ToastType } from "@/components/toast/PlaygroundToast";
+import { ConnectionProvider, useConnection } from "@/hooks/useConnection";
 
 interface ApiKey {
   projectNumber: string;
@@ -17,7 +24,7 @@ interface ApiKey {
 }
 
 // Add TabType type
-type TabType = 'APIKEYS' | 'FILES' | 'Chatbot' | 'FILTERWORDS';
+type TabType = 'APIKEYS' | 'FILES' | 'Voice Agent' | 'FILTERWORDS';
 
 // Add this utility function
 const truncateApiKey = (apiKey: string) => {
@@ -26,6 +33,306 @@ const truncateApiKey = (apiKey: string) => {
   }
   return apiKey;
 };
+function VoiceAgentContent() {
+  const router = useRouter(); // Initialize the router
+  const featuresRef = useRef([]);
+
+  // Set up the intersection observer when the component mounts
+  useEffect(() => {
+    const options = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -100px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('feature-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, options);
+
+    // Observe all feature elements
+    featuresRef.current.forEach(el => {
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      if (featuresRef.current) {
+        featuresRef.current.forEach(el => {
+          if (el) observer.unobserve(el);
+        });
+      }
+    };
+  }, []);
+
+  // Add a ref to a feature element
+  const addToRefs = (el) => {
+    if (el && !featuresRef.current.includes(el)) {
+      featuresRef.current.push(el);
+    }
+  };
+
+  // Function to handle button click
+  const handleChatButtonClick = () => {
+        router.push('/auth/login/agent');
+  };
+
+  return (
+    <div className="relative min-h-screen bg-gradient-to-b from-gray-900 to-black text-white overflow-hidden">
+      {/* CSS for the feature animations */}
+      <style jsx>{`
+        .feature-from-left {
+          opacity: 0;
+          transform: translateX(-100px);
+          transition: opacity 1s ease-out, transform 1s ease-out;
+        }
+        
+        .feature-from-right {
+          opacity: 0;
+          transform: translateX(100px);
+          transition: opacity 1s ease-out, transform 1s ease-out;
+        }
+        
+        .feature-visible {
+          opacity: 1 !important;
+          transform: translateX(0) !important;
+        }
+      `}</style>
+
+      {/* Fixed Button in Top Right - Updated with onClick handler */}
+      <div className="fixed top-6 right-6 z-50">
+        <button 
+          className="px-6 py-3 bg-gradient-to-r from-cartesia-500 to-blue-600 text-white text-lg font-bold rounded-lg shadow-lg hover:shadow-cartesia-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cartesia-500 focus:ring-opacity-50 group"
+          onClick={handleChatButtonClick}
+        >
+          <div className="flex items-center justify-center">
+            <span className="mr-2 group-hover:animate-pulse">🚀</span>
+            <span>Chat with ARIA</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2 transition transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </div>
+        </button>
+      </div>
+
+      {/* Main Content Container */}
+      <div className="container mx-auto px-4 py-20">
+        {/* Hero Section with Fade-In Animation */}
+        <div className="min-h-[80vh] flex flex-col items-center justify-center opacity-0 animate-fade-in-slow" style={{animationDelay: "0.5s", animationFillMode: "forwards"}}>
+          <h1 className="text-6xl font-extrabold mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-cartesia-400 to-blue-500">ARIA</h1>
+          <p className="text-xl text-gray-300 max-w-2xl text-center">Artificial Response Intelligence Assistant - Your intelligent AI assistant that understands natural language and responds with human-like conversation.</p>
+          
+          {/* Added a second button in the hero section */}
+          <button 
+            className="mt-8 px-8 py-4 bg-gradient-to-r from-cartesia-500 to-blue-600 text-white text-lg font-bold rounded-lg shadow-lg hover:shadow-cartesia-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cartesia-500 focus:ring-opacity-50 group"
+            onClick={handleChatButtonClick}
+          >
+            <div className="flex items-center justify-center">
+              <span className="mr-2 group-hover:animate-pulse">💬</span>
+              <span>Start Chatting with ARIA</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2 transition transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </div>
+          </button>
+          
+          <div className="mt-12 animate-bounce">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Features Section with Scroll Animations */}
+        <div className="py-20 space-y-32">
+          {/* Feature 1 - Voice Interaction */}
+          <div ref={addToRefs} className="feature-from-left flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+                  <span className="text-xl">🎙️</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-cartesia-400">Voice Interaction</h3>
+                  <p className="text-gray-300">Engage with users through natural voice responses powered by Cartesia voice synthesis, making interactions intuitive and fluid.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-cartesia-500/20 to-blue-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">🗣️</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 2 - HR Policies and IT Support */}
+          <div ref={addToRefs} className="feature-from-right flex flex-col md:flex-row-reverse items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+                  <span className="text-xl">📋</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-blue-400">HR Policies & IT Support</h3>
+                  <p className="text-gray-300">Access comprehensive information regarding HR policies, IT support, and organizational logistics with instant, accurate responses.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">👥</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 3 - Bad Language Filtering */}
+          <div ref={addToRefs} className="feature-from-left flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+                  <span className="text-xl">🛡️</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-cartesia-400">Bad Language Filtering</h3>
+                  <p className="text-gray-300">Maintain professional communication with advanced filtering systems that ensure respectful and appropriate interactions.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-cartesia-500/20 to-blue-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">🔍</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 4 - Two-Factor Authentication */}
+          <div ref={addToRefs} className="feature-from-right flex flex-col md:flex-row-reverse items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+                  <span className="text-xl">🔐</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-blue-400">Two-Factor Authentication</h3>
+                  <p className="text-gray-300">Enhanced security with email-based two-factor authentication ensures your organizational data remains protected and private.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">🔒</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 5 - Technology Stack */}
+          <div ref={addToRefs} className="feature-from-left flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+                  <span className="text-xl">⚙️</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-cartesia-400">Advanced Technology Stack</h3>
+                  <p className="text-gray-300">Powered by Next.js, Python, Google Gemini for NLP, Deepgram for speech-to-text, and Cartesia for voice synthesis, creating a seamless experience.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-cartesia-500/20 to-blue-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">💻</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 6 - LiveKit Integration */}
+          <div ref={addToRefs} className="feature-from-right flex flex-col md:flex-row-reverse items-center justify-between gap-8">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 md:w-2/3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+                  <span className="text-xl">🔊</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2 text-blue-400">Real-time Communication</h3>
+                  <p className="text-gray-300">Utilizing LiveKit for real-time communication and voice processing, ensuring responsive and fluid interactions with minimal latency.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block md:w-1/3">
+              <div className="relative h-64 w-64 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-gray-800 rounded-full flex items-center justify-center">
+                  <span className="text-5xl">📡</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Technology Stack Section */}
+        <div className="py-16 opacity-0 animate-fade-in-slow" style={{animationDelay: "1s", animationFillMode: "forwards"}}>
+          <h2 className="text-4xl font-bold mb-8 text-center bg-clip-text text-transparent bg-gradient-to-r from-cartesia-400 to-blue-500">Powered By</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 max-w-4xl mx-auto">
+            <div className="bg-gray-800 p-4 rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-3xl mb-2">🔷</span>
+              <span className="text-sm font-medium text-gray-300">Next.js</span>
+            </div>
+            <div className="bg-gray-800 p-4 rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-3xl mb-2">🐍</span>
+              <span className="text-sm font-medium text-gray-300">Python</span>
+            </div>
+            <div className="bg-gray-800 p-4 rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-3xl mb-2">🧠</span>
+              <span className="text-sm font-medium text-gray-300">Google Gemini</span>
+            </div>
+            <div className="bg-gray-800 p-4 rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-3xl mb-2">🎤</span>
+              <span className="text-sm font-medium text-gray-300">Deepgram</span>
+            </div>
+            <div className="bg-gray-800 p-4 rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-3xl mb-2">🔊</span>
+              <span className="text-sm font-medium text-gray-300">Cartesia</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Bottom CTA */}
+        <div className="py-16 text-center">
+          <button 
+            className="px-8 py-4 bg-gradient-to-r from-cartesia-500 to-blue-600 text-white text-xl font-bold rounded-lg shadow-lg hover:shadow-cartesia-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cartesia-500 focus:ring-opacity-50 group"
+            onClick={handleChatButtonClick}
+          >
+            <div className="flex items-center justify-center">
+              <span className="mr-2 group-hover:animate-pulse">✨</span>
+              <span>Experience ARIA Now</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 ml-2 transition transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export default function Page() {
   const { userEmail, userPassword, logout } = useAuth();
@@ -314,6 +621,7 @@ export default function Page() {
     }
   };
 
+  
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen text-white">
       {/* Professional Header Bar */}
@@ -347,7 +655,7 @@ export default function Page() {
       {/* Enhanced Tab Navigation */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         <div className="flex justify-start gap-1 p-1 bg-gray-800/50 backdrop-blur rounded-lg inline-block">
-          {['APIKEYS', 'FILES', 'Chatbot', 'FILTERWORDS'].map((tab) => (
+          {['APIKEYS', 'FILES', 'Voice Agent', 'FILTERWORDS'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as TabType)}
@@ -618,6 +926,7 @@ export default function Page() {
                                     : 'text-blue-400 border border-blue-400/50 hover:bg-blue-500/10'
                                   }`}
                               >
+                                
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -773,19 +1082,16 @@ export default function Page() {
               </div>
             </div>
           )}
+  {activeTab === "Voice Agent" && (
+        <ConnectionProvider>
+          <VoiceAgentContent />
+        </ConnectionProvider>
+      )}
+   
 
-          {activeTab === 'Chatbot' && (
-            <div className="p-8">
-              <div className="text-center py-8">
-                <div className="max-w-md mx-auto">
-                  <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <p className="text-gray-400 text-lg">Chatbot coming soon</p>
-                </div>
-              </div>
-            </div>
-          )}
+
+
+
 
           {activeTab === 'FILTERWORDS' && (
             <div className="p-8">
