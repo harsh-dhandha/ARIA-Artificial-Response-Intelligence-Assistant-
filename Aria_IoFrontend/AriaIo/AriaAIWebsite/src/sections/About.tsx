@@ -101,9 +101,9 @@ export const AboutSection = () => {
             <Card className="h-[400px] p-0 flex flex-col md:col-span-2 lg:col-span-1">
               <CardHeader title="Creators" description="Just a couple of Students with passion" className="px-6 py-6" />
               <div className="p-6">
-                <h3 className="text-xl font-semibold">[Team Maverick]</h3>
+                <h3 className="text-xl font-semibold">[Team ARIA]</h3>
                 <p className="mt-4">
-                "A skilled team combining expertise in Unreal Engine, NLP, backend development, and data visualization to deliver innovative and efficient solutions with creativity and precision."
+                "A skilled team combining having knowledge of  LLMS, backend development, and data visualization to deliver innovative and efficient solutions with creativity and precision."
                 </p>
               </div>
           </Card>
@@ -113,16 +113,13 @@ export const AboutSection = () => {
   <ul className="list-none pl-2 pr-6">
   <li className="flex pb-2">
     <span className="mr-2 mt-1 bg-gradient-to-r from-emerald-300 to-sky-400 text-center bg-clip-text text-transparent">🏆</span>
-    <span>AI-Powered Lip Syncing: Used Rhubarb for realistic lip-syncing and natural facial movements.</span>
+    <span>ARIA.io is the voice agent to whom you can ask about enterepeurise policies and procedure.</span>
   </li>
   <li className="flex pb-2">
     <span className="mr-2 mt-1 bg-gradient-to-r from-emerald-300 to-sky-400 text-center bg-clip-text text-transparent">🏆</span>
     <span>RAG Backend: Integrated RAG for context-aware AI responses.</span>
   </li>
-  <li className="flex pb-2">
-    <span className="mr-2 mt-1 bg-gradient-to-r from-emerald-300 to-sky-400 text-center bg-clip-text text-transparent">🏆</span>
-    <span>Custom Unreal Engine Blueprints: Developed blueprint nodes to optimize workflows.</span>
-  </li>
+ 
   <li className="flex pb-2">
     <span className="mr-2 mt-1 bg-gradient-to-r from-emerald-300 to-sky-400 text-center bg-clip-text text-transparent">🏆</span>
     <span>Realistic Character Modeling: Applied AI for lifelike character creation and expressions.</span>

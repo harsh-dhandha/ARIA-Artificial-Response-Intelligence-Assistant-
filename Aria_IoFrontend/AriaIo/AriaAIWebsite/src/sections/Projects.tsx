@@ -1,11 +1,13 @@
 import darkSaasLandingPage from "@/assets/images/nodesconnections.jpg";
-import lightSaasLandingPage from "@/assets/images/fullmetahuman.png";
-import aiStartupLandingPage from "@/assets/images/MaleHuman.png";
+import lightSaasLandingPage from "@/assets/images/ARIA1-02.jpeg.jpg";
+import aiStartupLandingPage from "@/assets/images/agent.jpg";
 import Image from "next/image";
 import CheckCircleIcon from "@/assets/icons/check-circle.svg";
 import ArrowUpRighticon from "@/assets/icons/arrow-up-right.svg";
 import grainImage from "@/assets/images/grain.jpg";
+import emailImage from "@/assets/images/email.jpg";
 import { SectionHeader } from "@/components/SectionHeader";
+
 import { Card } from "@/components/Card";
 import GithubIcon from "@/assets/icons/github.svg";
 
@@ -35,9 +37,9 @@ const portfolioProjects = [
   {
     company: "Core Features",
     year: "2024",
-    title: "Document Processing",
+    title: "ARIAIO Voice Agent",
     results: [
-      { title: "Analyze and extract relevant information from uploaded documents, summarizing key points for users." }
+      { title: "Agent Conversation: One can talk with the Agent and ask about the HR policies or any enterperuse based doubts" }
     ],
     link: "#",
     sourceCode: "#",
@@ -52,7 +54,7 @@ const portfolioProjects = [
     ],
     link: "#",
     sourceCode: "#",
-    image: aiStartupLandingPage,
+    image: lightSaasLandingPage,
   },
   {
     company: "Core Features",
@@ -63,7 +65,7 @@ const portfolioProjects = [
     ],
     link: "#",
     sourceCode: "#",
-    image: aiStartupLandingPage,
+    image: emailImage,
   },
 ];
 

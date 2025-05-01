@@ -32,7 +32,8 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post('http://localhost:8000/request_login_otp', { "email": email });
+      const response = await axios.post('https://aria-io-2fzp.onrender.com/request_login_otp', { "email": email });
+      
       if (response.status === 200) {
         setOtpSent(true);
         toast.success('OTP sent successfully!');
@@ -51,7 +52,7 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post('http://localhost:8000/login_with_otp', { "email": email, "otp": otp });
+      const response = await axios.post('https://aria-io-2fzp.onrender.com/login_with_otp', { "email": email, "otp": otp });
       if (response.data.status === true) {
         setOtpVerified(true);
         toast.success('OTP verified successfully!');
@@ -79,12 +80,13 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post('http://localhost:8000/login', {
+      const response = await axios.post('https://aria-io-2fzp.onrender.com/login', {
         "email": email,
         "password": password
       });
 
       if (response.data.status === true) {
+
         setUserEmail(email);
         setUserPassword(password);
         

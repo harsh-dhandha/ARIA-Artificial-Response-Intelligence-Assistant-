@@ -21,7 +21,7 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   
   // Replace with your backend URL
-  const API_BASE_URL = 'http://localhost:8000'; // Update this with your actual backend URL
+  const API_BASE_URL = 'https://aria-io-2fzp.onrender.com'; // Update this with your actual backend URL
 
   const handleSendOtp = async () => {
     if (!email) return;
