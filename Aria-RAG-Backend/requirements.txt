@@ -3,8 +3,9 @@ uvicorn==0.24.0
 pydantic==2.4.2
 python-multipart==0.0.6
 langchain==0.0.311
+huggingface_hub==0.16.4
 sentence-transformers==2.2.2
 PyPDF2==3.0.1
-faiss-cpu==1.7.4
+chromadb==0.4.22
 google-generativeai==0.3.1
-python-dotenv==1.0.0 
+python-dotenv==1.0.0

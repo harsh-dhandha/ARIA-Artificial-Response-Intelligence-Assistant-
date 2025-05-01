@@ -1,38 +1,65 @@
-import numpy as np
 from typing import List, Dict, Any
-import faiss
-from sentence_transformers import SentenceTransformer
+import chromadb
+import os
+import uuid
 
 class VectorStore:
     def __init__(self):
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.index = None
+        # Create a persistent client
+        os.makedirs("chroma_db", exist_ok=True)
+        self.client = chromadb.PersistentClient(path="chroma_db")
+        
+        # Create or get collection with default embedding function
+        self.collection = self.client.get_or_create_collection(
+            name="documents"
+        )
+        
+        # Store documents for later reference
         self.documents = []
     
     def add_documents(self, documents: List[Dict[str, Any]]):
         """Add documents to the vector store."""
+        if not documents:
+            return
+            
         self.documents.extend(documents)
+        
+        # Prepare data for Chroma
+        ids = [str(uuid.uuid4()) for _ in documents]
         texts = [doc["text"] for doc in documents]
-        embeddings = self.model.encode(texts)
+        metadatas = [doc["metadata"] for doc in documents]
         
-        if self.index is None:
-            # Initialize FAISS index
-            dimension = embeddings.shape[1]
-            self.index = faiss.IndexFlatL2(dimension)
-        
-        # Add embeddings to index
-        self.index.add(np.array(embeddings).astype('float32'))
+        # Add to collection
+        self.collection.add(
+            ids=ids,
+            documents=texts,
+            metadatas=metadatas
+        )
     
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """Search for similar documents."""
-        query_embedding = self.model.encode([query])
-        scores, indices = self.index.search(np.array(query_embedding).astype('float32'), k)
+        if self.collection.count() == 0:
+            return []
+            
+        # Query the collection
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=k
+        )
         
-        results = []
-        for i, idx in enumerate(indices[0]):
-            if idx < len(self.documents):
-                result = self.documents[idx].copy()
-                result["score"] = float(scores[0][i])
-                results.append(result)
-        
-        return results 
+        # Format results
+        formatted_results = []
+        if results and results["documents"]:
+            for i, (doc_text, metadata, distance) in enumerate(zip(
+                results["documents"][0], 
+                results["metadatas"][0],
+                results["distances"][0] if "distances" in results else [0] * len(results["documents"][0])
+            )):
+                score = 1.0 - (distance if distance else 0)  # Convert distance to similarity score
+                formatted_results.append({
+                    "text": doc_text,
+                    "metadata": metadata,
+                    "score": score
+                })
+                
+        return formatted_results
