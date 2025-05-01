@@ -24,7 +24,7 @@ interface ApiKey {
 }
 
 // Add TabType type
-type TabType = 'APIKEYS' | 'FILES' | 'Voice Agent' | 'FILTERWORDS';
+type TabType = 'APIKEYS' | 'FILES' | 'Voice Agent' | 'FILTERWORDS' | 'CHAT';
 
 // Add this utility function
 const truncateApiKey = (apiKey: string) => {
@@ -34,9 +34,9 @@ const truncateApiKey = (apiKey: string) => {
   return apiKey;
 };
 
-function VoiceAgentContent() {
+const VoiceAgentContent = () => {
   const router = useRouter(); // Initialize the router
-  const featuresRef = useRef([]);
+  const featuresRef = useRef<Array<HTMLElement | null>>([]);
 
   // Set up the intersection observer when the component mounts
   useEffect(() => {
@@ -69,7 +69,7 @@ function VoiceAgentContent() {
   }, []);
 
   // Add a ref to a feature element
-  const addToRefs = (el) => {
+  const addToRefs = (el: HTMLElement | null) => {
     if (el && !featuresRef.current.includes(el)) {
       featuresRef.current.push(el);
     }
@@ -101,7 +101,7 @@ function VoiceAgentContent() {
           transform: translateX(0) !important;
         }
       `}</style>
-       
+
       {/* Fixed Button in Top Right - Updated with onClick handler */}
       <div className="fixed top-6 right-6 z-50">
         <button 
@@ -334,8 +334,7 @@ function VoiceAgentContent() {
   );
 };
 
-
-export default function Page() {
+const Page = () => {
   const { userEmail, userPassword, logout } = useAuth();
   const router = useRouter();
   
@@ -465,12 +464,28 @@ export default function Page() {
       setApiKeyName('');
       setShowCreateForm(false);
       toast.success('API Key created successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create API key:', error);
       toast.error('Failed to create API key. Please try again.');
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    setSelectedFiles(pdfFiles);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    setSelectedFiles(pdfFiles);
+  };
 
   const uploadToFirebase = async (file: File) => {
     const storageRef = ref(storage, `pdfs/${Date.now()}-${file.name}`);
@@ -478,70 +493,90 @@ export default function Page() {
     return await getDownloadURL(storageRef);
   };
 
-  // Check user session
-  useEffect(() => {
-      if (!userEmail || !userPassword) {
-          router.push('/auth/login');
-      }
-  }, [userEmail, userPassword, router]);
-
-  // Handle file selection
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
-      setSelectedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
-    }
-  };
-
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const files = event.dataTransfer.files;
-    const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
-    setSelectedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
-  };
-
-
-  // Handle file upload
   const handleUpload = async () => {
-      if (selectedFiles.length === 0) {
-          toast.error('Please select PDF files to upload');
-          return;
-      }
+    if (apiKeys.length === 0) {
+      toast.error('Please create an API key first');
+      setShowCreateForm(true);
+      return;
+    }
 
-      setIsUploading(true);
-      const formData = new FormData();
-      selectedFiles.forEach(file => {
-          formData.append('files', file); // Append each file to FormData
-      });
+    if (selectedFiles.length === 0) {
+      toast.error('Please select PDF files to upload');
+      return;
+    }
 
-      try {
-          const response = await axios.post('http://localhost:8000/upload-pdfs', formData, {
-              headers: {
-                  'Content-Type': 'multipart/form-data',
-              },
-          });
+    setIsUploading(true);
+    try {
+      const uploadPromises = selectedFiles.map(uploadToFirebase);
+      const fileUrls = await Promise.all(uploadPromises);
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKeys[0].apiKey.trim()}`
+      };
 
-          if (response.data.status) {
-              console.log(response.data.files); // Log the uploaded file URLs
-              toast.success('Files uploaded successfully');
-              setSelectedFiles([]); // Clear selected files
-          } else {
-              toast.error('Failed to upload files. Please try again.');
+      // Upload files
+      const uploadResponse = await axios.post(
+        'https://mimirai-rag.onrender.com/process', 
+        {
+          files: fileUrls,
+          rewrite: rewriteMode
+        },
+        { 
+          headers,
+          validateStatus: function (status) {
+            return status < 500;
           }
-      } catch (error) {
-          console.error('Upload error:', error);
-          const errorMessage = error.response?.data?.detail || 'An error occurred during upload';
-          toast.error(errorMessage);
-      } finally {
-          setIsUploading(false); // Reset uploading state
+        }
+      );
+
+      if (uploadResponse.status === 401) {
+        throw new Error('Invalid or expired API key');
       }
+
+      // Only proceed with filter words check if process was successful
+      if (uploadResponse.status === 200) {
+        try {
+          const filterWordsResponse = await axios.post('https://mimirai-rag.onrender.com/get_filterwords', {
+            email: userEmail
+          });
+          
+          setFilterWords(filterWordsResponse.data.filter_words);
+          
+          if (filterWordsResponse.data.filter_words.length > 0) {
+            setActiveTab('FILTERWORDS');
+            toast('Inappropriate content detected!', {
+              icon: '⚠️',
+              style: {
+                background: '#FEF3C7',
+                color: '#92400E',
+              },
+            });
+          } else {
+            toast.success('No inappropriate content detected');
+          }
+        } catch (error) {
+          console.error('Failed to check filter words:', error);
+          toast.error('Failed to check content for inappropriate words');
+        }
+      }
+
+      console.log('API Response:', uploadResponse.data);
+      toast.success('Files uploaded and processed successfully!');
+      setSelectedFiles([]);
+    } catch (error: any) {
+      console.error('Full error:', error);
+      console.error('Error response:', error.response);
+      if (error.response?.status === 404) {
+        toast.error('API endpoint not found. Please check the URL.');
+      } else if (error.response?.status === 401) {
+        toast.error('Unauthorized. Invalid API key or expired token.');
+      } else {
+        toast.error('Failed to upload files. Please try again.');
+      }
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleApiKeyClick = (key: ApiKey) => {
@@ -580,12 +615,11 @@ export default function Page() {
       toast.success(response.data.message || 'Domain added successfully!');
       setShowDomainForm(false);
       setDomain('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add domain:', error);
       toast.error(error.response?.data?.message || 'Failed to add domain. Please try again.');
     }
   };
-
 
   
   return (
@@ -621,7 +655,7 @@ export default function Page() {
       {/* Enhanced Tab Navigation */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         <div className="flex justify-start gap-1 p-1 bg-gray-800/50 backdrop-blur rounded-lg inline-block">
-          {['APIKEYS', 'FILES', 'Voice Agent', 'FILTERWORDS'].map((tab) => (
+          {['APIKEYS', 'FILES', 'Voice Agent', 'FILTERWORDS', 'CHAT'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as TabType)}
@@ -947,12 +981,26 @@ export default function Page() {
 
                   {/* Upload Button */}
                   <button
-                onClick={handleUpload}
-                disabled={isUploading || selectedFiles.length === 0}
-                className={`mt-4 w-full py-3 rounded-lg font-medium ${isUploading || selectedFiles.length === 0 ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
-            >
-                {isUploading ? 'Uploading...' : 'Upload Files'}
-            </button>
+                    onClick={handleUpload}
+                    disabled={isUploading || selectedFiles.length === 0}
+                    className={`w-full py-3 rounded-lg font-medium shadow-lg transition-all duration-200 ${
+                      isUploading || selectedFiles.length === 0
+                        ? 'bg-gray-600 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600 shadow-green-500/30'
+                    }`}
+                  >
+                    {isUploading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Uploading...
+                      </div>
+                    ) : (
+                      'Upload Files'
+                    )}
+                  </button>
                 </div>
                 {/* Replace the existing PDF Preview Overlay with this new full-screen modal */}
                 {showPreview && selectedPreviewFile && (
@@ -1059,6 +1107,129 @@ export default function Page() {
               )}
             </div>
           )}
+
+          {activeTab === 'CHAT' && (
+            <div className="p-8">
+              <div className="max-w-6xl mx-auto">
+                {/* Header section */}
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-white">Document Chat</h2>
+                    <p className="text-gray-400 mt-2">Interact with your uploaded documents through natural conversation</p>
+                  </div>
+                  <button
+                    onClick={() => router.push('/auth/login/chat')}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg shadow-lg hover:shadow-blue-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    Chat Now
+                  </button>
+                </div>
+
+                {/* Feature Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  {/* Card 1 */}
+                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700 shadow-lg hover:shadow-blue-500/5 transition-all duration-300 hover:translate-y-[-5px]">
+                    <div className="w-12 h-12 mb-4 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Ask Questions</h3>
+                    <p className="text-gray-300">Ask specific questions about your documents and receive accurate answers backed by your content.</p>
+                  </div>
+
+                  {/* Card 2 */}
+                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700 shadow-lg hover:shadow-purple-500/5 transition-all duration-300 hover:translate-y-[-5px]">
+                    <div className="w-12 h-12 mb-4 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Summarize Content</h3>
+                    <p className="text-gray-300">Get concise summaries of lengthy documents, focusing on the key points and insights.</p>
+                  </div>
+
+                  {/* Card 3 */}
+                  <div className="bg-gray-800/70 rounded-xl p-6 border border-gray-700 shadow-lg hover:shadow-green-500/5 transition-all duration-300 hover:translate-y-[-5px]">
+                    <div className="w-12 h-12 mb-4 rounded-lg bg-green-500/20 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Extract Insights</h3>
+                    <p className="text-gray-300">Discover hidden patterns, trends, and actionable insights from your document collection.</p>
+                  </div>
+                </div>
+
+                {/* Advantages Section */}
+                <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-xl p-8 border border-blue-800/30">
+                  <h3 className="text-xl font-semibold text-blue-300 mb-6">Why Use Document Chat?</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-medium text-white mb-1">Time Efficiency</h4>
+                        <p className="text-gray-400 text-sm">Find answers in seconds instead of hours reading through documents</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-medium text-white mb-1">Contextual Understanding</h4>
+                        <p className="text-gray-400 text-sm">AI understands the context of your documents and provides relevant answers</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-medium text-white mb-1">Multiple Document Analysis</h4>
+                        <p className="text-gray-400 text-sm">Cross-reference information across all your uploaded documents</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-md font-medium text-white mb-1">Natural Conversation</h4>
+                        <p className="text-gray-400 text-sm">Interact with your documents using natural language conversations</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom CTA Button */}
+                  <div className="mt-8 text-center">
+                    <button
+                      onClick={() => router.push('/auth/login/chat')}
+                      className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg shadow-lg hover:shadow-blue-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center gap-2 mx-auto"
+                    >
+                      <span>Start Chatting with Your Documents</span>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1100,5 +1271,7 @@ export default function Page() {
       )}
     </div>
   );
-}
+};
+
+export default Page;
   
