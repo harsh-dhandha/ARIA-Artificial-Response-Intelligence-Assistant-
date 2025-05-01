@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi import FastAPI, HTTPException, Depends, status, Request, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
@@ -24,6 +24,9 @@ import uvicorn
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from utils.cors_helpers import cors_options_response  # Import the helper function
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.staticfiles import StaticFiles
+import shutil
+import uuid
 
 load_dotenv()
 
@@ -829,113 +832,101 @@ async def login(request: Login):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {str(e)}"
         )
-from fastapi import FastAPI, File, UploadFile, HTTPException, status
-from typing import List
-import cloudinary
-import cloudinary.uploader
-import os
-import firebase_admin
-from firebase_admin import credentials, firestore, storage
 
-cloudinary.config(
-    cloud_name="dofjekdo1",
-    api_key="234761368851919",
-    api_secret="V-GtIw-vUrX-gOfLdJQJhB7FJ_k"
-)
+# Create uploads directory if it doesn't exist
+UPLOAD_DIR = "uploads"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
-# Use firebase_app name to avoid conflicts
-try:
-    firebase_app = firebase_admin.get_app()
-except ValueError:
-    # Initialize Firebase if not already initialized
-    # cred = credentials.Certificate("path/to/serviceAccountKey.json")
-    # firebase_app = firebase_admin.initialize_app(cred)
-    pass
+# Mount the uploads directory to serve static files
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# Get Firestore client
-db = firestore.client()
-
-@app.post("/uploads", status_code=status.HTTP_200_OK)
-async def upload_files(files: List[UploadFile] = File(...)):
-    """Upload multiple PDF files to Cloudinary and store metadata in Firestore."""
-    
-    # Validate number of files
-    if len(files) > 5:
+@app.post("/upload")
+async def upload_files(files: list[UploadFile] = File(...)):
+    """Upload multiple PDF files"""
+    try:
+        uploaded_files = []
+        for file in files:
+            # Validate file type
+            if not file.content_type == "application/pdf":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {file.filename} is not a PDF"
+                )
+            
+            # Generate unique filename
+            unique_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}_{file.filename}"
+            file_path = os.path.join(UPLOAD_DIR, unique_filename)
+            
+            # Save file
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            # Get file size
+            file_size = os.path.getsize(file_path)
+            
+            uploaded_files.append({
+                "filename": unique_filename,
+                "originalname": file.filename,
+                "size": file_size,
+                "path": f"/uploads/{unique_filename}"
+            })
+        
+        return {
+            "success": True,
+            "files": uploaded_files
+        }
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 5 PDF files can be uploaded at once"
+            status_code=500,
+            detail=str(e)
         )
-    
-    uploaded_files_info = []
-    
-    for file in files:
-        # Validate file is a PDF
-        if not file.content_type == "application/pdf":
+
+@app.get("/files")
+async def get_files():
+    """Get all uploaded files"""
+    try:
+        files = []
+        for filename in os.listdir(UPLOAD_DIR):
+            file_path = os.path.join(UPLOAD_DIR, filename)
+            stats = os.stat(file_path)
+            files.append({
+                "filename": filename,
+                "size": stats.st_size,
+                "path": f"/uploads/{filename}"
+            })
+        
+        return {
+            "success": True,
+            "files": files
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+@app.delete("/files/{filename}")
+async def delete_file(filename: str):
+    """Delete a specific file"""
+    try:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(file_path):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File {file.filename} is not a PDF"
+                status_code=404,
+                detail="File not found"
             )
         
-        temp_file_path = None
-        try:
-            # Read content and create temporary file
-            content = await file.read()
-            print(f"DEBUG: Read content for {file.filename}")
-
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                temp_file_path = temp_file.name
-                temp_file.write(content)
-                print(f"DEBUG: Temporary file created at {temp_file_path}")
-
-            # Upload to Cloudinary
-            result = cloudinary.uploader.upload(
-                temp_file_path,
-                resource_type="raw",
-                folder="pdfs",
-                use_filename=True,
-                unique_filename=True
-            )
-            print(f"DEBUG: Uploaded to Cloudinary: {result['secure_url']}")
-
-            # Create metadata
-            file_info = {
-                'name': file.filename,
-                'contentType': file.content_type,
-                'url': result['secure_url'],
-                'public_id': result['public_id'],
-                'uploaded_at': firestore.SERVER_TIMESTAMP
-            }
-            print(f"DEBUG: File info to store: {file_info}")
-
-            # Store in Firestore
-            doc_ref = db.collection('pdf_uploads').add(file_info)
-            print(f"DEBUG: Document added to Firestore with ID: {doc_ref.id}")
-            
-            # Add file info to the response list
-            uploaded_files_info.append(file_info)
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error uploading {file.filename}: {str(e)}"
-            )
-        finally:
-            # Clean up temp file
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-    
-    return {
-        "status": True,
-        "message": "Files uploaded successfully",
-        "files_processed": len(uploaded_files_info),
-        "uploaded_files": uploaded_files_info,
-    }
-
-from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile
-from firebase_admin import firestore
-from datetime import datetime, timedelta
-import traceback
+        os.remove(file_path)
+        return {
+            "success": True,
+            "message": "File deleted successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 @app.options("/upload-pdfs")
 async def options_upload_pdfs():

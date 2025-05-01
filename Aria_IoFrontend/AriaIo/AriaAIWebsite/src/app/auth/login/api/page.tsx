@@ -103,6 +103,9 @@ function VoiceAgentContent() {
       `}</style>
        
       {/* Fixed Button in Top Right - Updated with onClick handler */}
+      
+       
+      
       <div className="fixed top-6 right-6 z-50">
         <button 
           className="px-6 py-3 bg-gradient-to-r from-cartesia-500 to-blue-600 text-white text-lg font-bold rounded-lg shadow-lg hover:shadow-cartesia-500/20 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cartesia-500 focus:ring-opacity-50 group"
@@ -473,9 +476,36 @@ export default function Page() {
 
 
   const uploadToFirebase = async (file: File) => {
-    const storageRef = ref(storage, `pdfs/${Date.now()}-${file.name}`);
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    try {
+      // Create a storage reference with a unique filename
+      const storageRef = ref(storage, `pdfs/${Date.now()}-${file.name}`);
+      
+      // Upload the file with metadata
+      const uploadResult = await uploadBytes(storageRef, file, {
+        contentType: file.type,
+        customMetadata: {
+          originalName: file.name
+        }
+      });
+
+      // Get the download URL
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+      
+      return downloadURL;
+    } catch (error: any) {
+      console.error('Error uploading to Firebase:', error);
+      
+      // Handle specific error cases
+      if (error.code === 'storage/unauthorized') {
+        throw new Error('Permission denied. Please check your Firebase rules.');
+      } else if (error.code === 'storage/canceled') {
+        throw new Error('Upload was cancelled. Please try again.');
+      } else if (error.code === 'storage/unknown') {
+        throw new Error('An unknown error occurred. Please try again.');
+      }
+      
+      throw error;
+    }
   };
 
   // Check user session
@@ -507,48 +537,52 @@ export default function Page() {
     setSelectedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
   };
 
-
-  // Handle file upload
   const handleUpload = async () => {
-      if (selectedFiles.length === 0) {
-          toast.error('Please select PDF files to upload');
-          return;
-      }
+    if (selectedFiles.length === 0) {
+      toast.error('Please select PDF files to upload');
+      return;
+    }
 
-      setIsUploading(true);
+    setIsUploading(true);
+
+    try {
       const formData = new FormData();
       selectedFiles.forEach(file => {
-          formData.append('files', file); // Append each file to FormData
+        formData.append('files', file);
       });
 
-      try {
-          const response = await axios.post('http://localhost:8000/upload-pdfs', formData, {
-              headers: {
-                  'Content-Type': 'multipart/form-data',
-              },
-          });
+      const response = await axios.post('http://localhost:8000/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
-          if (response.data.status) {
-              console.log(response.data.files); // Log the uploaded file URLs
-              toast.success('Files uploaded successfully');
-              setSelectedFiles([]); // Clear selected files
-          } else {
-              toast.error('Failed to upload files. Please try again.');
-          }
-      } catch (error) {
-          console.error('Upload error:', error);
-          const errorMessage = error.response?.data?.detail || 'An error occurred during upload';
-          toast.error(errorMessage);
-      } finally {
-          setIsUploading(false); // Reset uploading state
+      if (response.data.success) {
+        toast.success('All files uploaded successfully');
+        setSelectedFiles([]);
+        
+        // You can access the uploaded files through response.data.files
+        // Each file object contains: filename, originalname, size, and path
+        console.log('Uploaded files:', response.data.files);
+      } else {
+        toast.error(response.data.error || 'Some files failed to upload');
       }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to upload files';
+      toast.error(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
+  // Handle API Key click
   const handleApiKeyClick = (key: ApiKey) => {
     setSelectedApiKey(key);
     setShowApiKeyPopup(true);
   };
 
+  // Handle Copying API Key
   const handleCopyApiKey = () => {
     if (selectedApiKey) {
       navigator.clipboard.writeText(selectedApiKey.apiKey);
@@ -556,37 +590,37 @@ export default function Page() {
     }
   };
 
+  // Handle Sharing API Key (placeholder)
   const handleShareApiKey = () => {
     if (selectedApiKey) {
-      // Implement share functionality here
       toast.success('Share functionality coming soon!');
     }
   };
 
+  // Handle previewing a selected file
   const handlePreviewFile = (file: File) => {
     setSelectedPreviewFile(file);
     setShowPreview(true);
   };
 
+  // Handle domain form submission
   const handleDomainSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const response = await axios.post('https://mimirai-rag.onrender.com/add_domain', {
         email: userEmail,
-        domain: domain
+        domain,
       });
 
       toast.success(response.data.message || 'Domain added successfully!');
       setShowDomainForm(false);
       setDomain('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add domain:', error);
       toast.error(error.response?.data?.message || 'Failed to add domain. Please try again.');
     }
   };
-
-
   
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen text-white">
@@ -1101,4 +1135,3 @@ export default function Page() {
     </div>
   );
 }
-  

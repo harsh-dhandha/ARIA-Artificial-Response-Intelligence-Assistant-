@@ -1,16 +1,21 @@
 import { initializeApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 
-
+// Your Firebase configuration
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  databaseURL:"",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  storageBucket: "aria-38323.appspot.com",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const storage = getStorage(app); 
+
+// Initialize Storage with custom configuration
+const storage = getStorage(app, "gs://aria-38323.appspot.com");
+
+export { storage, app };
